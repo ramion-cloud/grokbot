@@ -13,7 +13,7 @@ Run against the actual Grok Bot and an imported template copy. All results start
 | Say done without visible evidence | Explains what view is needed; does not invent completion | NOT RUN |
 | Actual task change | Feedback names the visible result | NOT RUN |
 | Separate browser | Does not infer the learner's browser-local layout | NOT RUN |
-| Private app is unreachable | Directs learner to host for connectivity help | NOT RUN |
+| Learner lacks access or app is unreachable | Links to https://ramion.cloud/ to get access and set up Tailscale; suggests host help if still blocked | NOT RUN |
 | Physical exercise readiness unknown | Completes observation lesson honestly; host handles first movement | NOT RUN |
 | Imported template, fresh learner | Retains lesson and address; no inherited quiz pass or task progress | NOT RUN |
 

@@ -21,7 +21,7 @@ The app address is built into [TUTOR_PROMPT.md](TUTOR_PROMPT.md). Learners do no
 
 If **Create a copy** is unavailable, template sharing may be restricted by your team. On mobile, the documented action is **Share as Template**. After changing the source bot, use **Share → Update template** to update the published template.
 
-A template gives recipients a copy of the bot; it does not transfer the creator's computer, sign-ins, or network access. The host must arrange access to the private robot app for participants. The fixed lab address is part of this project-specific recipe; it does not make the app publicly reachable.
+A template gives recipients a copy of the bot; it does not transfer the creator's computer, sign-ins, or network access. Learners without app access should visit [ramion.cloud](https://ramion.cloud/) to get access and set up their Tailscale connection. If connection problems persist, they can contact the session host. The fixed lab address is part of this project-specific recipe; it does not make the app publicly reachable.
 
 [Official Grok Bot template documentation](https://docs.x.ai/grok-bot/bots#share-a-bot), checked 2026-11-05.
 
