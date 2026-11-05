@@ -90,6 +90,6 @@ Next: explore Ramion rentals / advanced paths with your team.
 
 If ops requests demo of soft-stop only:
 
-- Tutor calls proposed `POST /api/v1/control/soft-stop`.
+- Tutor calls verified `POST /api/stop` with JSON `{}`.
 - Explain hardware e-stop is separate.
-- Do not count as Watcher demo.
+- Do not count as a Papaj Watcher demo; Watcher dry-run remains the default.

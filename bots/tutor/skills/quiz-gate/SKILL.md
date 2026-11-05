@@ -29,16 +29,16 @@ Ask one question at a time; wait for answer. Do not reveal all answers upfront.
 |--------|---------|
 | Monitor bot | ✅ Correct |
 | Tutor (this chat) | ❌ Retry |
-| Watcher bot | ❌ Retry — Watcher is for abuse/safety monitoring, not lesson grading |
+| Watcher bot | ❌ Retry — Papaj Watcher (`packages/watcher`) is for safety alerts, not lesson grading |
 | Automatic email | ❌ Retry |
 
 ## Q3 — Network access
 
-**Question:** Why do we share the MagicDNS link (`ramion-server-01.tail0fbdb0.ts.net`) instead of a public URL?
+**Question:** Why do we share a private viewer URL (from `RAMION_VIEWER_URL`) instead of a public URL?
 
 | Answer | Verdict |
 |--------|---------|
-| Viewer is on private Tailscale tailnet | ✅ Correct (accept variations mentioning VPN/tailnet/private) |
+| Viewer is on a private network | ✅ Correct (accept variations mentioning VPN/tailnet/private network) |
 | GitHub requires it | ❌ Retry |
 | Faster DNS | ❌ Retry |
 | Monitor cannot use HTTPS | ❌ Retry |
@@ -49,8 +49,7 @@ Reply:
 
 ```text
 Quiz passed ✅
-Viewer (Tailscale): http://ramion-server-01.tail0fbdb0.ts.net:8780/
-Alternate on tailnet: http://ramion-server-01:8780/
+Viewer: ${RAMION_VIEWER_URL}
 Confirm you can load the page, then say "ready for exercise 1".
 ```
 

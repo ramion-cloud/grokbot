@@ -1,6 +1,6 @@
 # Ramion multi-agent architecture
 
-This document defines **boundaries**, **data flow**, and **observability choices** for the Grok Bot hackathon submission (Tutor + Monitor). **Watcher** is described only as an external boundary.
+This document defines **boundaries**, **data flow**, and **observability choices** for the Grok Bot hackathon submission (Tutor, Monitor, and Papaj Watcher).
 
 ## Agents and responsibilities
 
@@ -11,28 +11,37 @@ This document defines **boundaries**, **data flow**, and **observability choices
 | Curriculum delivery, tone, pacing | Physical e-stop or motor commands directly |
 | Safety quiz gate before sharing viewer URL | Continuous 24/7 vision surveillance |
 | Exercise assignment and learner encouragement | Final truth on pass/fail (delegates to Monitor) |
-| Calling **soft-stop** API + Discord alert when learner reports trouble or Monitor flags danger | Abuse detection at scale (Watcher) |
+| Calling **soft-stop** (`POST /api/stop`) + ops alert when learner reports trouble or Monitor/Watcher flags danger | Re-evaluating Watcher heuristics |
 
-**Approval boundaries:** Tutor shares the Tailscale viewer link only after quiz pass. Tutor must not skip Monitor grading for scored exercises.
+**Approval boundaries:** Tutor shares `RAMION_VIEWER_URL` only after quiz pass. Tutor must not skip Monitor grading for scored exercises.
 
 ### Monitor bot
 
 | Owns | Does not own |
 |------|----------------|
-| Opening the viewer URL (MagicDNS) on a schedule | Teaching narrative or quiz content |
-| Screenshot cadence and/or polling proposed status API | Issuing new exercises to the learner |
-| Applying rubrics → structured **PASS** / **FAIL** + reason | Hard e-stop (may recommend Tutor call soft-stop) |
+| Opening the viewer URL (`RAMION_BASE_URL`) on a schedule | Teaching narrative or quiz content |
+| Screenshot cadence and/or polling `GET /api/state` | Issuing new exercises to the learner |
+| Applying exercise rubrics → structured **PASS** / **FAIL** + reason | Reimplementing Watcher safety rules |
+| Consuming Watcher webhook/JSONL alerts | Hard e-stop (may recommend Tutor call `POST /api/stop`) |
 
-Monitor is **stateless between grading runs** except for optional session notes in channel thread; source of truth for arm state is the server at `:8780`.
+Monitor is **stateless between grading runs** except for optional session notes in channel thread. Arm-state truth is `GET /api/state`. Safety-alert truth, when Watcher is running, is the Watcher JSON (`source: papaj-watcher`).
 
-### Watcher bot (colleague-owned — not in this repo)
+### Papaj Watcher ([`packages/watcher`](../packages/watcher))
 
-Documented boundary only:
+Implemented in this repo as a standalone HTTP client (not dashboard/controller source):
 
-- **Purpose:** Detect bad actors, reckless trajectories, or policy violations outside exercise scope.
-- **Inputs:** Same viewer (higher cadence or dedicated stream processing), logs, optional joint telemetry.
-- **Outputs:** Alerts to ops / Discord; may trigger soft-stop or session revoke on the server.
-- **Not duplicated here** so hackathon judges can see a clean **Tutor ↔ Monitor** teaching loop without conflating safety monitoring with grading.
+- **Purpose:** Detect dangerous motion patterns and unsafe camera scenes; warn the team; optionally request software STOP.
+- **Inputs:** `GET /api/state` and `GET /cameras/{overhead,wrist,observer}.jpg` at a configurable interval.
+- **Outputs:** stdout, optional JSONL (`PAPAJ_LOG`), optional webhook (`PAPAJ_WEBHOOK_URL`) so a Grok Bot routine or Monitor can receive alerts. Evidence frames stay in a private `--evidence` directory (not git).
+- **STOP:** `POST /api/stop` only when `--enable-stop` is set (default dry-run). Non-loopback URLs also need `--confirm-remote-stop`.
+- **Not duplicated in Monitor** so grading stays an exercise rubric and safety stays a single rule engine.
+
+How Monitor consumes alerts:
+
+1. Operator points `PAPAJ_WEBHOOK_URL` at a Monitor-visible webhook (or a Grok Bot routine that posts into the lab channel), and/or shares `PAPAJ_LOG` JSONL.
+2. Each event has `level` (`info` / `warning` / `critical`), `rule` (see `api/contract.md`), `message`, `should_stop`, `dry_run`, and `stop_requested`.
+3. During an exercise, a Watcher `critical` finding is a safety FAIL context (`rule` + `level` in Evidence). A `warning` is noted, not an automatic exercise FAIL.
+4. Monitor must not recompute joint limits, velocity, temperature, current, tracking error, command bursts, or lease heuristics — those thresholds live in `packages/watcher/thresholds.example.json`.
 
 ## End-to-end data flow
 
@@ -41,7 +50,8 @@ sequenceDiagram
   participant L as Learner
   participant T as Tutor
   participant M as Monitor
-  participant S as Ramion server :8780
+  participant W as Papaj Watcher
+  participant S as Dashboard HTTP API
   participant R as Robot stack
 
   L->>T: Join group channel / start lesson
@@ -50,31 +60,35 @@ sequenceDiagram
   alt quiz fail
     T->>L: Remediation, retry
   else quiz pass
-    T->>L: Viewer URL (MagicDNS)
+    T->>L: Viewer URL from RAMION_VIEWER_URL
     T->>L: Exercise brief (e.g. open gripper)
     L->>S: UI commands (viewer)
     S->>R: Motion (within server limits)
     T->>M: Grade request (exercise id, session hint)
     loop every N seconds until timeout
-      M->>S: GET /api/v1/state (proposed)
+      M->>S: GET /api/state
       M->>S: Viewer screenshot
+    end
+    loop Watcher poll
+      W->>S: GET /api/state
+      W->>S: GET /cameras/{role}.jpg
+      W->>M: webhook or JSONL alert (if finding)
     end
     M->>T: PASS or FAIL + evidence summary
     T->>L: Next step or retry
   end
 ```
 
-## Tailscale reachability
+## Reachability
 
 | Actor | Typical access |
 |-------|----------------|
-| Learner browser | Tailscale client on laptop; opens MagicDNS viewer URL |
-| Grok Bot Monitor | Hosted agent with **Tailscale** egress to tailnet (see `SETUP.md`); base URL `http://ramion-server-01.tail0fbdb0.ts.net:8780` |
-| Tutor | Usually no direct HTTP to arm; shares link and coordinates Monitor |
+| Learner browser | Private network path; opens `RAMION_VIEWER_URL` |
+| Grok Bot Monitor | Agent runtime that can reach `RAMION_BASE_URL` |
+| Papaj Watcher | Same dashboard base via `RAMION_DASHBOARD_URL` |
+| Tutor | Usually no direct HTTP to the arm; shares the viewer link and coordinates Monitor |
 
-**Why MagicDNS for Monitor:** Cloud-hosted Grok Bot runners may not resolve short names like `ramion-server-01`. MagicDNS FQDN is stable for skills and env vars.
-
-**Secrets:** No tailnet keys in this repo. Operators configure Tailscale on the agent environment or use team-approved network path.
+**Secrets:** No network credentials or private hostnames in this repo. Operators configure reachability and env files off git.
 
 ## Vision: screenshot cadence vs RTSP subscribe
 
@@ -82,34 +96,37 @@ Monitor could theoretically subscribe to an RTSP/WebRTC video stream. This desig
 
 1. **Same surface as the learner** — grades what the human sees in the product UI, including overlays and disabled states.
 2. **Agent-native** — Grok Bot browser/screenshot tools fit a cadence loop (`every 2–3s` for 30–60s) without maintaining a long-lived media decoder in the agent runtime.
-3. **Deterministic rubrics** — gripper open/close maps cleanly to UI labels or `gripper_open: true` in proposed JSON (see `api/contract.md`).
+3. **Deterministic rubrics** — gripper open/close maps to `measured[gripper]` versus `limits[gripper]` (see `api/contract.md`).
 4. **Cost and complexity** — RTSP adds firewall rules, auth, and frame sync; screenshot + API is enough for hackathon exercises (open gripper, close gripper, move to preset).
-5. **Watcher separation** — higher-rate or model-based anomaly detection can attach to RTSP on the Watcher side without changing Tutor/Monitor.
+5. **Watcher separation** — Watcher may optionally send frames to a VLM (`vision_unsafe`) and always stores evidence JPEGs privately. Monitor does not subscribe to RTSP for grading.
 
-When API state is available, Monitor should **prefer API for pass/fail** and use screenshots for **dispute resolution** or when API fields are TODO on the server.
+When API state is available, Monitor should **prefer `GET /api/state` for pass/fail** and use screenshots for **dispute resolution** or when a needed field is missing.
 
 ## Soft stop vs hard e-stop
 
 | Layer | Mechanism | Owner |
 |-------|-----------|--------|
 | Hard e-stop | Hardware / robot controller | Robot stack |
-| Soft stop | HTTP `POST /api/v1/control/soft-stop` (proposed) | Ramion server |
-| Chat alert | Discord webhook (optional env) | Ops |
+| Soft stop | HTTP `POST /api/stop` (**verified**) | Dashboard / panel |
+| Watcher alert | Webhook / JSONL (`warning` or `critical`) | `packages/watcher` |
+| Chat alert | Optional ops webhook | Ops |
 
-Tutor instructions: on learner panic or Monitor `FAIL` with safety keyword, call soft-stop once and tell learner the session is frozen until ops reset.
+Tutor instructions: on learner panic, Monitor safety FAIL, or a forwarded Watcher `critical` alert, call `POST /api/stop` once (if policy allows) and tell the learner the session is held until ops reset. Watcher itself stays in dry-run unless an operator enables STOP.
 
 ## Failure modes
 
 | Symptom | Tutor behavior | Monitor behavior |
 |---------|----------------|------------------|
-| Tailscale down | Do not share URL; link SETUP | Abort grade with `INCONCLUSIVE` |
-| API 404 (not implemented yet) | Still run exercises | Grade from screenshots only; note in result |
+| Dashboard unreachable | Do not share URL; link SETUP | Abort grade with `INCONCLUSIVE` |
+| `GET /api/state` fails, viewer works | Still run exercises | Grade from screenshots only; note in result |
 | Ambiguous screenshot | Allow one retry | `FAIL` with “state unclear” |
-| Dangerous motion (Watcher) | Relay Watcher alert if wired | Out of scope; Watcher handles |
+| Watcher `critical` alert | Pause exercises; consider soft-stop | FAIL or annotate using Watcher `rule` / `level`; do not re-run the heuristic |
+| Watcher `warning` alert | Mention to learner if relevant | Record in Evidence |
 
 ## Related files
 
-- [`../api/contract.md`](../api/contract.md) — proposed HTTP surface
+- [`../api/contract.md`](../api/contract.md) — verified and proposed HTTP surface
+- [`../packages/watcher/README.md`](../packages/watcher/README.md) — how to run Watcher
 - [`../bots/tutor/PERSONA.md`](../bots/tutor/PERSONA.md) — Tutor boundaries
 - [`../bots/monitor/PERSONA.md`](../bots/monitor/PERSONA.md) — Monitor boundaries
-- [`../SETUP.md`](../SETUP.md) — Tailscale + bot wiring
+- [`../SETUP.md`](../SETUP.md) — bot and Watcher wiring

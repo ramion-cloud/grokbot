@@ -1,3 +1,17 @@
+# Python / watcher
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.jsonl
+evidence/
+samples/
+.pytest_cache/
+.mypy_cache/
+*.jpg
+!packages/watcher/tests/fixtures/*.jpg
+
 # Dependencies
 node_modules/
 npm-debug.log*

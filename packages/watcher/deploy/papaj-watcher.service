@@ -1,0 +1,20 @@
+[Unit]
+Description=Papaj Watcher (Ramion dashboard camera and telemetry observer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust User, WorkingDirectory and EnvironmentFile for the install host.
+# Do not put secrets in this unit file.
+WorkingDirectory=/opt/grokbot/packages/watcher
+EnvironmentFile=-/etc/papaj-watcher.env
+ExecStart=/usr/bin/python3 -m papaj_watcher
+Restart=on-failure
+RestartSec=5
+
+# This example never enables STOP. Set PAPAJ_ENABLE_STOP in the env file
+# only after you have reviewed thresholds and alert routing.
+
+[Install]
+WantedBy=multi-user.target
