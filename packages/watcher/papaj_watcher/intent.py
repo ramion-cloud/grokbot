@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .alerts import now_local
+from .config import zone_violation
 from .rules import Finding, float_map, is_latched, limit_map, moving, owner_id, sample_age
 
 LEVEL_NORMAL = "normal"
@@ -29,6 +30,9 @@ PROFILE_BENIGN = "benign"
 
 UNLEASED = "unleased"
 
+ZONE_SIGNALS = ("forbidden_zone", "forbidden_zone_dwell", "forbidden_zone_reentry")
+ZONE_ESCALATORS = ("forbidden_zone_dwell", "forbidden_zone_reentry")
+
 
 @dataclass
 class IntentConfig:
@@ -41,6 +45,12 @@ class IntentConfig:
     motion_epsilon_deg: float = 1.5
     score_jump: float = 3.0
     novice_discount: float = 0.5
+    # Demo forbidden zones (soft, not hardware limits). Own weights, never discounted as novice.
+    demo_zones: list[dict[str, Any]] = field(default_factory=list)
+    demo_zone_dwell_s: float = 3.0
+    zone_entry_weight: float = 5.0  # one entry -> suspicious (>= suspicious_score)
+    zone_dwell_weight: float = 7.0  # entry + dwell -> bad_intent (>= bad_intent_score)
+    zone_reentry_weight: float = 7.0  # re-entry after a warning (5 + 7) -> bad_intent
 
 
 @dataclass
@@ -66,6 +76,10 @@ class SessionState:
     last_emit_level: str | None = None
     last_emit_score: float = 0.0
     last_evidence: list[str] = field(default_factory=list)
+    zone_entered_ts: dict[str, float] = field(default_factory=dict)
+    zone_dwell_flagged: set[str] = field(default_factory=set)
+    zone_entries: dict[str, int] = field(default_factory=dict)
+    demo_bad_emit_ts: float | None = None
 
 
 @dataclass
@@ -122,12 +136,14 @@ def format_slack_text(
     reasons: list[dict[str, Any]],
     recommended_action: str,
     dry_run: bool,
+    demo: bool = False,
 ) -> dict[str, Any]:
     """Plain-text fallback plus Slack Block Kit JSON, nested as ``slack_text``."""
     owner = session.get("label") or session.get("owner_id") or UNLEASED
     reason_lines = [str(item.get("detail") or item.get("code") or "") for item in reasons]
     reason_lines = [line for line in reason_lines if line]
-    text = (
+    prefix = "[DEMO] " if demo else ""
+    text = prefix + (
         f"Papaj Watcher intent: {level} "
         f"(score {score:.1f})\n"
         f"Session: {owner}\n"
@@ -140,7 +156,7 @@ def format_slack_text(
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"Intent {level} (score {score:.1f})", "emoji": True},
+            "text": {"type": "plain_text", "text": f"{prefix}Intent {level} (score {score:.1f})", "emoji": True},
         },
         {
             "type": "section",
@@ -204,7 +220,10 @@ class IntentEngine:
         self._note_stop_and_claim(state, now)
         self._ingest_state_signals(session, state, now)
         self._ingest_findings(session, findings, now)
+        self._ingest_zones(session, state, now)
         self._prune(session, now)
+        if not any(event.signal == "forbidden_zone" for event in session.events):
+            session.zone_entries.clear()
         assessment = self._score(session, now)
         self.last_assessment = assessment
         return assessment
@@ -219,7 +238,8 @@ class IntentEngine:
     ) -> dict[str, Any] | None:
         if assessment.level == LEVEL_NORMAL:
             return None
-        if not self._should_emit(session, assessment, now):
+        demo = any(event.signal in ZONE_SIGNALS for event in session.events)
+        if not self._should_emit(session, assessment, now, demo=demo):
             return None
         slack = format_slack_text(
             level=assessment.level,
@@ -229,6 +249,7 @@ class IntentEngine:
             reasons=assessment.reasons,
             recommended_action=assessment.recommended_action,
             dry_run=dry_run,
+            demo=demo,
         )
         event = {
             "type": "intent_alert",
@@ -244,15 +265,23 @@ class IntentEngine:
             "recommended_action": assessment.recommended_action,
             "dry_run": dry_run,
             "slack_text": slack,
+            "demo": demo,
         }
+        if demo and assessment.level == LEVEL_BAD_INTENT:
+            session.demo_bad_emit_ts = now
         session.last_emit_ts = now
         session.last_emit_level = assessment.level
         session.last_emit_score = assessment.score
         return event
 
-    def _should_emit(self, session: SessionState, assessment: IntentAssessment, now: float) -> bool:
+    def _should_emit(
+        self, session: SessionState, assessment: IntentAssessment, now: float, *, demo: bool = False
+    ) -> bool:
         if session.last_emit_ts is None:
             return True
+        if demo and session.demo_bad_emit_ts is not None and now - session.demo_bad_emit_ts < self.config.window_s:
+            # Demo already escalated to bad_intent: one warn + one escalation, no spam.
+            return False
         escalated = _level_rank(assessment.level) > _level_rank(session.last_emit_level or LEVEL_NORMAL)
         jumped = assessment.score - session.last_emit_score >= self.config.score_jump
         if escalated or jumped:
@@ -275,6 +304,8 @@ class IntentEngine:
 
     def _ingest_findings(self, session: SessionState, findings: list[Finding], now: float) -> None:
         for item in findings:
+            if item.rule == "forbidden_zone":
+                continue
             after = item.rule in session.warned_rules
             if item.level == "warning":
                 session.warned_rules.add(item.rule)
@@ -378,6 +409,39 @@ class IntentEngine:
                 )
             self._vacated_after_stop = False
 
+    def _ingest_zones(self, session: SessionState, state: dict[str, Any], now: float) -> None:
+        measured = float_map(state.get("measured"))
+        cfg = self.config
+        for zone in cfg.demo_zones:
+            name = zone["name"]
+            position = measured.get(zone["joint"])
+            message = zone_violation(zone, position) if position is not None else None
+            if message is None:
+                session.zone_entered_ts.pop(name, None)
+                session.zone_dwell_flagged.discard(name)
+                continue
+            if name not in session.zone_entered_ts:
+                session.zone_entered_ts[name] = now
+                count = session.zone_entries.get(name, 0) + 1
+                session.zone_entries[name] = count
+                self._push(session, WindowEvent(ts=now, signal="forbidden_zone", detail=message,
+                                                weight=cfg.zone_entry_weight, after_warning=count > 1))
+                if count > 1:
+                    self._push(session, WindowEvent(
+                        ts=now, signal="forbidden_zone_reentry",
+                        detail=f"Re-entered {name} after a warning: {message}",
+                        weight=cfg.zone_reentry_weight, after_warning=True))
+            elif (
+                name not in session.zone_dwell_flagged
+                and now - session.zone_entered_ts[name] >= cfg.demo_zone_dwell_s
+            ):
+                session.zone_dwell_flagged.add(name)
+                held = now - session.zone_entered_ts[name]
+                self._push(session, WindowEvent(
+                    ts=now, signal="forbidden_zone_dwell",
+                    detail=f"Stayed in {name} for {held:.1f} s: {message}",
+                    weight=cfg.zone_dwell_weight, after_warning=True))
+
     def _targets_outside_limits(self, state: dict[str, Any]) -> list[str]:
         limits = limit_map(state.get("limits"))
         target = float_map(state.get("target"))
@@ -404,7 +468,9 @@ class IntentEngine:
         escalated_rule = False
         first: dict[str, str] = {}
 
-        for event in session.events:
+        zone_events = [event for event in session.events if event.signal in ZONE_SIGNALS]
+        events = [event for event in session.events if event.signal not in ZONE_SIGNALS]
+        for event in events:
             weight = event.weight
             if event.signal in {
                 "joint_near_limits",
@@ -472,18 +538,23 @@ class IntentEngine:
             )
 
         window = self.config.window_s
-        early = sum(1 for event in session.events if event.ts < now - window / 2)
-        late = sum(1 for event in session.events if event.ts >= now - window / 2)
+        early = sum(1 for event in events if event.ts < now - window / 2)
+        late = sum(1 for event in events if event.ts >= now - window / 2)
         decreasing = late < early
-        isolated = len(session.events) <= 3
+        isolated = len(events) <= 3
         high_risk = any(
             event.signal in {"motion_after_stop", "reclaim_after_stop", "stale_loop_abuse"}
             or (event.signal == "vision_unsafe" and event.level == "critical")
-            for event in session.events
+            for event in events
         )
+        zone_escalated = any(event.signal in ZONE_ESCALATORS for event in zone_events)
         deliberate = has_repeat_warning or escalated_rule or high_risk or collision_count >= 2
         novice = (not deliberate) and (decreasing or isolated) and not high_risk
-        if not session.events:
+        if zone_escalated:
+            profile = PROFILE_DELIBERATE
+        elif not events and zone_events:
+            profile = PROFILE_BENIGN
+        elif not session.events:
             profile = PROFILE_BENIGN
         elif novice:
             profile = PROFILE_NOVICE
@@ -503,6 +574,12 @@ class IntentEngine:
                 }
             )
 
+        # Demo zones use their own weights and are never novice-discounted.
+        for event in zone_events:
+            score += event.weight
+            raw += event.weight
+            reasons.append({"code": event.signal, "detail": event.detail, "weight": event.weight})
+
         if score >= self.config.bad_intent_score:
             level = LEVEL_BAD_INTENT
         elif score >= self.config.suspicious_score:
@@ -510,13 +587,19 @@ class IntentEngine:
         else:
             level = LEVEL_NORMAL
 
-        if profile == PROFILE_NOVICE and level == LEVEL_BAD_INTENT:
+        if profile == PROFILE_NOVICE and level == LEVEL_BAD_INTENT and not zone_events:
             level = LEVEL_SUSPICIOUS
+        if zone_events and level == LEVEL_NORMAL:
+            level = LEVEL_SUSPICIOUS
+        if zone_escalated:
+            level = LEVEL_BAD_INTENT
 
         if level == LEVEL_NORMAL:
             action = ACTION_WARN
         elif level == LEVEL_SUSPICIOUS:
             action = ACTION_WARN
+        elif zone_escalated:
+            action = ACTION_REVIEW
         elif any(event.signal == "reclaim_after_stop" for event in session.events) or any(
             event.signal == "vision_unsafe" and event.level == "critical" for event in session.events
         ):
@@ -526,7 +609,7 @@ class IntentEngine:
         else:
             action = ACTION_SOFT_STOP
 
-        if profile == PROFILE_NOVICE:
+        if profile == PROFILE_NOVICE and not zone_escalated:
             action = ACTION_WARN
 
         return IntentAssessment(
