@@ -47,9 +47,16 @@ def finding_payload(
 
 
 class AlertSink:
-    def __init__(self, log_path: Path | None = None, webhook_url: str | None = None) -> None:
+    def __init__(
+        self,
+        log_path: Path | None = None,
+        webhook_url: str | None = None,
+        webhook_auth: str | None = None,
+    ) -> None:
         self.log_path = log_path
         self.webhook_url = webhook_url
+        # Sent verbatim as the Authorization header; never printed or logged.
+        self._webhook_auth = webhook_auth or None
         if self.log_path is not None:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -82,17 +89,26 @@ class AlertSink:
 
     def _post_webhook(self, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
+        headers = {"Content-Type": "application/json", "User-Agent": "papaj-watcher/0.1"}
+        if self._webhook_auth:
+            headers["Authorization"] = self._webhook_auth
         request = Request(
             self.webhook_url,
             data=body,
-            headers={"Content-Type": "application/json", "User-Agent": "papaj-watcher/0.1"},
+            headers=headers,
             method="POST",
         )
         try:
             with urlopen(request, timeout=8) as response:
                 response.read()
         except Exception as exc:
-            print(f"webhook failed: {exc}", file=sys.stderr, flush=True)
+            print(f"webhook failed: {type(exc).__name__}: {_redact(str(exc), self._webhook_auth)}", file=sys.stderr, flush=True)
+
+
+def _redact(text: str, secret: str | None) -> str:
+    if secret:
+        text = text.replace(secret, "[redacted]")
+    return text
 
 
 def describe_url_error(exc: URLError) -> str:

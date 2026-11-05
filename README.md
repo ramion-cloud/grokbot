@@ -1,8 +1,54 @@
-# Ramion × Grok Bot — Multi-Agent Robotics Tutor
+# Papaj Watcher: a safety watcher for remote robot arms
 
-**Hackathon:** Wrocław Grok Bot Hackathon · **Date:** 5 Nov 2026
-**Track:** Multi-agent systems on Grok Bot
+**Papaj Watcher reads a real arm's cameras and telemetry, spots risky or malicious remote sessions, and alerts a human in Slack.**
+
+![Papaj Watcher: real camera frames, live-style telemetry, intent score and Slack alert](docs/assets/papaj-watcher-hero.png)
+<sub>Real camera frames from our SO-101 arm. The risky state is a simulated alert overlay; the real arm was never put in danger.</sub>
+
+## Why
+
+- **Remote users can break real hardware.** Ramion rents time on a physical arm, so a careless or hostile session costs real money.
+- **Watcher sees camera + telemetry.** It polls `GET /api/state` and the camera snapshots, then scores the whole session (60 s window), not single frames.
+- **It flags bad intent to Slack, and a human decides.** It does not trigger the e-stop or revoke access on its own.
+
+## Use case in 3 steps
+
+![Novice warned vs deliberate misuse escalated to human review](docs/assets/use-case-strip.png)
+
+1. **Novice** bumps a joint limit once → `suspicious`, a gentle warning.
+2. **Deliberate misuse** (repeats after the warning, commands targets outside the limits) → `bad_intent`, escalated.
+3. **Human review** in Slack: the operator decides whether to keep or end the session.
+
+![How it works](docs/assets/flow.png)
+
+## Safety by design
+
+- **Dry-run by default:** the watcher only reads (GET) until you opt in.
+- **Soft stop is gated:** `POST /api/stop` only with `--enable-stop` (plus `--confirm-remote-stop` for non-loopback URLs).
+- **No e-stop or revoke automation:** the hardware e-stop stays in the robot stack; access decisions stay with people.
+- **Secrets stay private:** webhook auth (`PAPAJ_WEBHOOK_AUTH`) is sent as a header and never logged.
+
+![Slack alert preview (simulated)](docs/assets/slack-alert-preview.png)
+
+## 30-second quickstart
+
+```bash
+cd packages/watcher
+python3 -m unittest discover -s tests        # 37 tests, all passing
+export RAMION_DASHBOARD_URL=http://127.0.0.1:8780
+python3 -m papaj_watcher --webhook "$PAPAJ_WEBHOOK_URL"   # dry-run, intent detector on
+```
+
+Works alongside the existing arm dashboard HTTP API (`/api/state`, `/cameras/*.jpg`) as an external client. No changes to the robot server.
+
+---
+
+<details><summary>Hackathon context: Ramion × Grok Bot multi-agent tutor</summary>
+
+**Hackathon:** Wrocław Grok Bot Hackathon · **Date:** 5 Nov 2026 · **Track:** Multi-agent systems on Grok Bot
 **Repo history:** This repository started **empty** (`ramion-cloud/grokbot`). It now holds the Tutor + Monitor agent recipes and the Papaj Watcher package. It is not a clone of the robot server.
+
+</details>
 
 ## Pitch (30 seconds)
 

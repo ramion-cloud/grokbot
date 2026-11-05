@@ -21,7 +21,7 @@ class PapajWatcher:
         self.settings = settings
         self.client = client or DashboardClient(settings.url, settings.timeout_s)
         self.rules = RuleEngine(settings.thresholds)
-        self.alerts = AlertSink(settings.log_path, settings.webhook_url)
+        self.alerts = AlertSink(settings.log_path, settings.webhook_url, settings.webhook_auth)
         self.intent = None
         if settings.intent_enabled:
             self.intent = IntentEngine(

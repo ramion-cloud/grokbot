@@ -182,6 +182,7 @@ See `docs/architecture.md` and `bots/monitor/skills/grading-rubric/SKILL.md`.
 | `PAPAJ_LOG` / `--log` | JSONL path |
 | `PAPAJ_EVIDENCE` / `--evidence` | Evidence directory |
 | `PAPAJ_WEBHOOK_URL` / `--webhook` | Alert webhook |
+| `PAPAJ_WEBHOOK_AUTH` / `--webhook-auth` | Optional `Authorization` header value sent verbatim (e.g. `Bearer xyz`); never logged |
 | `PAPAJ_CONFIG` / `--config` | Thresholds JSON |
 | `PAPAJ_THRESHOLDS_JSON` | Inline thresholds JSON |
 | `PAPAJ_ENABLE_STOP` / `--enable-stop` | Allow `POST /api/stop` |

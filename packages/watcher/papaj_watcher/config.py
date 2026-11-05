@@ -91,6 +91,7 @@ class Settings:
     log_path: Path | None = None
     evidence_dir: Path | None = None
     webhook_url: str | None = None
+    webhook_auth: str | None = field(default=None, repr=False)
     vlm_enabled: bool = False
     vlm_base_url: str | None = None
     vlm_api_key: str | None = None
@@ -202,6 +203,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Warning webhook URL, e.g. a Grok Bot routine trigger (env PAPAJ_WEBHOOK_URL)",
     )
     parser.add_argument(
+        "--webhook-auth",
+        default=os.environ.get("PAPAJ_WEBHOOK_AUTH"),
+        help="Authorization header value sent verbatim with webhook POSTs, e.g. 'Bearer xyz' "
+        "(env PAPAJ_WEBHOOK_AUTH). Never logged.",
+    )
+    parser.add_argument(
         "--config",
         default=os.environ.get("PAPAJ_CONFIG"),
         help="JSON file of threshold overrides (env PAPAJ_CONFIG)",
@@ -287,6 +294,7 @@ def settings_from_args(argv: list[str] | None = None) -> Settings:
         log_path=_optional_path(args.log),
         evidence_dir=_optional_path(args.evidence),
         webhook_url=args.webhook or None,
+        webhook_auth=args.webhook_auth or None,
         vlm_enabled=bool(args.vlm),
         vlm_base_url=args.vlm_base_url or None,
         vlm_api_key=os.environ.get("PAPAJ_VLM_API_KEY") or os.environ.get("OPENAI_API_KEY"),
