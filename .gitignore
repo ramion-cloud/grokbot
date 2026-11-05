@@ -1,17 +1,58 @@
+# Python / watcher
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
-.env
-.env.*
-!.env.example
 *.jsonl
 evidence/
 samples/
-logs/
-.DS_Store
 .pytest_cache/
 .mypy_cache/
 *.jpg
 !packages/watcher/tests/fixtures/*.jpg
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Logs and temp
+logs/
+*.log
+tmp/
+temp/
+.cache/
+
+# Agent SDK / local runtime (if added later)
+.agent/
+.playground/
