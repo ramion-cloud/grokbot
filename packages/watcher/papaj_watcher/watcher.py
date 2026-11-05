@@ -29,6 +29,8 @@ class PapajWatcher:
                     window_s=settings.intent_window_s,
                     cooldown_s=settings.intent_cooldown_s,
                     motion_epsilon_deg=settings.thresholds.motion_epsilon_deg,
+                    demo_zones=list(settings.thresholds.demo_zones),
+                    demo_zone_dwell_s=settings.thresholds.demo_zone_dwell_s,
                 )
             )
         self.vision = None

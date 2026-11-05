@@ -34,10 +34,12 @@
 
 ```bash
 cd packages/watcher
-python3 -m unittest discover -s tests        # 37 tests, all passing
+python3 -m unittest discover -s tests        # 45 tests, all passing
 export RAMION_DASHBOARD_URL=http://127.0.0.1:8780
 python3 -m papaj_watcher --webhook "$PAPAJ_WEBHOOK_URL"   # dry-run, intent detector on
 ```
+
+**Live demo:** a soft forbidden zone `shoulder_pan < -60°` triggers the full path to Slack; see [`packages/watcher/demo/DEMO.md`](packages/watcher/demo/DEMO.md).
 
 Works alongside the existing arm dashboard HTTP API (`/api/state`, `/cameras/*.jpg`) as an external client. No changes to the robot server.
 
