@@ -54,16 +54,25 @@ class AlertSink:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def emit(self, payload: dict[str, Any]) -> None:
-        line = (
-            f"[{payload['ts']}] {payload['level'].upper()} {payload['rule']}: {payload['message']}"
-        )
-        if payload.get("should_stop"):
-            if payload.get("dry_run"):
-                line += "  [DRY-RUN would POST /api/stop]"
-            elif payload.get("stop_requested"):
-                line += "  [STOP requested]"
-            else:
-                line += "  [STOP indicated]"
+        if payload.get("type") == "intent_alert":
+            session = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+            who = session.get("label") or session.get("owner_id") or "unleased"
+            line = (
+                f"[{payload.get('ts')}] INTENT {str(payload.get('level', '')).upper()} "
+                f"score={payload.get('score')} action={payload.get('recommended_action')} "
+                f"session={who}"
+            )
+        else:
+            line = (
+                f"[{payload['ts']}] {payload['level'].upper()} {payload['rule']}: {payload['message']}"
+            )
+            if payload.get("should_stop"):
+                if payload.get("dry_run"):
+                    line += "  [DRY-RUN would POST /api/stop]"
+                elif payload.get("stop_requested"):
+                    line += "  [STOP requested]"
+                else:
+                    line += "  [STOP indicated]"
         print(line, flush=True)
         if self.log_path is not None:
             with self.log_path.open("a", encoding="utf-8") as handle:

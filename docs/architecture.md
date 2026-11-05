@@ -22,7 +22,7 @@ This document defines **boundaries**, **data flow**, and **observability choices
 | Opening the viewer URL (`RAMION_BASE_URL`) on a schedule | Teaching narrative or quiz content |
 | Screenshot cadence and/or polling `GET /api/state` | Issuing new exercises to the learner |
 | Applying exercise rubrics → structured **PASS** / **FAIL** + reason | Reimplementing Watcher safety rules |
-| Consuming Watcher webhook/JSONL alerts | Hard e-stop (may recommend Tutor call `POST /api/stop`) |
+| Consuming Watcher webhook/JSONL alerts and `intent_alert` events; forwarding `slack_text` to a Grok Bot Slack routine | Hard e-stop or automatic revoke (a human decides) |
 
 Monitor is **stateless between grading runs** except for optional session notes in channel thread. Arm-state truth is `GET /api/state`. Safety-alert truth, when Watcher is running, is the Watcher JSON (`source: papaj-watcher`).
 
@@ -30,18 +30,34 @@ Monitor is **stateless between grading runs** except for optional session notes 
 
 Implemented in this repo as a standalone HTTP client (not dashboard/controller source):
 
-- **Purpose:** Detect dangerous motion patterns and unsafe camera scenes; warn the team; optionally request software STOP.
+- **Purpose:** Detect dangerous motion patterns and unsafe camera scenes; score session intent; warn the team; optionally request software STOP.
 - **Inputs:** `GET /api/state` and `GET /cameras/{overhead,wrist,observer}.jpg` at a configurable interval.
-- **Outputs:** stdout, optional JSONL (`PAPAJ_LOG`), optional webhook (`PAPAJ_WEBHOOK_URL`) so a Grok Bot routine or Monitor can receive alerts. Evidence frames stay in a private `--evidence` directory (not git).
-- **STOP:** `POST /api/stop` only when `--enable-stop` is set (default dry-run). Non-loopback URLs also need `--confirm-remote-stop`.
-- **Not duplicated in Monitor** so grading stays an exercise rubric and safety stays a single rule engine.
+- **Outputs:** stdout, optional JSONL (`PAPAJ_LOG`), optional webhook (`PAPAJ_WEBHOOK_URL`) so a Grok Bot routine or Monitor can receive rule findings and `intent_alert` events. Evidence frames stay in a private `--evidence` directory (not git).
+- **Intent detector:** `packages/watcher/papaj_watcher/intent.py` aggregates alerts per `control.owner_id` / `label` and emits `suspicious` / `bad_intent` with explainable reasons and a recommended action.
+- **STOP:** `POST /api/stop` only when `--enable-stop` is set (default dry-run), including when intent recommends `soft_stop`. Non-loopback URLs also need `--confirm-remote-stop`. Access revoke is never automatic.
+- **Not duplicated in Monitor** so grading stays an exercise rubric and safety/intent stay a single engine.
 
 How Monitor consumes alerts:
 
-1. Operator points `PAPAJ_WEBHOOK_URL` at a Monitor-visible webhook (or a Grok Bot routine that posts into the lab channel), and/or shares `PAPAJ_LOG` JSONL.
-2. Each event has `level` (`info` / `warning` / `critical`), `rule` (see `api/contract.md`), `message`, `should_stop`, `dry_run`, and `stop_requested`.
-3. During an exercise, a Watcher `critical` finding is a safety FAIL context (`rule` + `level` in Evidence). A `warning` is noted, not an automatic exercise FAIL.
-4. Monitor must not recompute joint limits, velocity, temperature, current, tracking error, command bursts, or lease heuristics — those thresholds live in `packages/watcher/thresholds.example.json`.
+1. Operator points `PAPAJ_WEBHOOK_URL` at a Monitor-visible webhook or a **Grok Bot routine** that forwards `intent_alert.slack_text` to a Slack channel, and/or shares `PAPAJ_LOG` JSONL.
+2. Rule findings have `level` (`info` / `warning` / `critical`) and `rule` (see `api/contract.md`).
+3. `type=intent_alert` events have `level` (`suspicious` / `bad_intent`), `score`, `session`, `reasons`, `recommended_action`, and `slack_text` (plain text + Block Kit).
+4. During an exercise, a Watcher `critical` finding or an `intent_alert` at `bad_intent` is safety FAIL context. A finding `warning` or intent `suspicious` is noted, not an automatic FAIL.
+5. Monitor must not recompute joint limits, velocity, intent scores, or lease heuristics. On `revoke_access_human_review`, escalate via the Grok Bot Slack routine and wait for a human.
+
+Intent data flow:
+
+```mermaid
+flowchart LR
+  ST[Station dashboard] --> W[Papaj Watcher]
+  W --> ID[Intent detector]
+  ID --> WH[Webhook / JSONL]
+  WH --> RT[Grok Bot routine]
+  RT --> SL[Slack channel]
+  SL --> H[Human review]
+  H -.->|may revoke access| ST
+  H -.->|may approve soft-stop| W
+```
 
 ## End-to-end data flow
 

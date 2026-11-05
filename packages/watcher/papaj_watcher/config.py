@@ -98,6 +98,9 @@ class Settings:
     vlm_timeout_s: float = 20.0
     vlm_can_stop: bool = False
     once: bool = False
+    intent_enabled: bool = True
+    intent_window_s: float = 60.0
+    intent_cooldown_s: float = 30.0
     thresholds: Thresholds = field(default_factory=Thresholds)
 
     def is_remote_host(self) -> bool:
@@ -248,6 +251,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Poll a single cycle and exit",
     )
+    parser.add_argument(
+        "--no-intent",
+        action="store_true",
+        help="Disable session intent scoring (enabled by default)",
+    )
+    parser.add_argument(
+        "--intent-window",
+        type=float,
+        default=float(os.environ.get("PAPAJ_INTENT_WINDOW", "60")),
+        help="Intent sliding window in seconds (env PAPAJ_INTENT_WINDOW)",
+    )
+    parser.add_argument(
+        "--intent-cooldown",
+        type=float,
+        default=float(os.environ.get("PAPAJ_INTENT_COOLDOWN", "30")),
+        help="Intent alert cooldown in seconds (env PAPAJ_INTENT_COOLDOWN)",
+    )
     return parser
 
 
@@ -274,6 +294,11 @@ def settings_from_args(argv: list[str] | None = None) -> Settings:
         vlm_timeout_s=max(1.0, float(args.vlm_timeout)),
         vlm_can_stop=bool(args.vlm_can_stop),
         once=bool(args.once),
+        intent_enabled=(not bool(args.no_intent)) and (
+            True if os.environ.get("PAPAJ_INTENT") is None else _truthy(os.environ.get("PAPAJ_INTENT"))
+        ),
+        intent_window_s=max(5.0, float(args.intent_window)),
+        intent_cooldown_s=max(1.0, float(args.intent_cooldown)),
         thresholds=thresholds,
     )
     settings.validate_stop_safety()

@@ -11,6 +11,7 @@ from .alerts import AlertSink, finding_payload
 from .client import ClientError, DashboardClient
 from .config import Settings, settings_from_args
 from .evidence import save_evidence
+from .intent import ACTION_SOFT_STOP, IntentConfig, IntentEngine
 from .rules import Finding, RuleEngine, is_latched
 from .vision import VisionAnalyzer
 
@@ -21,6 +22,15 @@ class PapajWatcher:
         self.client = client or DashboardClient(settings.url, settings.timeout_s)
         self.rules = RuleEngine(settings.thresholds)
         self.alerts = AlertSink(settings.log_path, settings.webhook_url)
+        self.intent = None
+        if settings.intent_enabled:
+            self.intent = IntentEngine(
+                IntentConfig(
+                    window_s=settings.intent_window_s,
+                    cooldown_s=settings.intent_cooldown_s,
+                    motion_epsilon_deg=settings.thresholds.motion_epsilon_deg,
+                )
+            )
         self.vision = None
         if settings.vlm_enabled:
             if not settings.vlm_base_url:
@@ -89,6 +99,7 @@ class PapajWatcher:
 
         critical_stop = any(item.should_stop for item in findings) and not is_latched(state)
         stop_requested = False
+        dry_run = not self.settings.enable_stop
         if critical_stop:
             if self.settings.enable_stop:
                 self.last_stop_response = self.client.send_stop(enabled=True)
@@ -100,20 +111,42 @@ class PapajWatcher:
                     flush=True,
                 )
 
-        if not findings:
-            print(f"[{time.strftime('%H:%M:%S')}] ok  sequence={state.get('sequence')} age_s={state.get('age_s')}", flush=True)
-            return findings
-
-        dry_run = not self.settings.enable_stop
-        for item in findings:
-            payload = finding_payload(
-                item,
-                ts,
-                dry_run=dry_run,
-                stop_requested=stop_requested and item.should_stop,
-                evidence=evidence_paths,
+        intent_event = None
+        if self.intent is not None:
+            intent_event = self.intent.update(
+                state, findings, evidence_paths, ts, dry_run=dry_run
             )
-            self.alerts.emit(payload)
+            if (
+                intent_event
+                and intent_event.get("recommended_action") == ACTION_SOFT_STOP
+                and not is_latched(state)
+                and not stop_requested
+            ):
+                if self.settings.enable_stop:
+                    self.last_stop_response = self.client.send_stop(enabled=True)
+                    stop_requested = True
+                    intent_event = {**intent_event, "stop_requested": True}
+                else:
+                    print(
+                        "DRY-RUN: intent recommended soft_stop would POST /api/stop. "
+                        "Re-run with --enable-stop to actually stop the arm.",
+                        flush=True,
+                    )
+
+        if findings:
+            for item in findings:
+                payload = finding_payload(
+                    item,
+                    ts,
+                    dry_run=dry_run,
+                    stop_requested=stop_requested and item.should_stop,
+                    evidence=evidence_paths,
+                )
+                self.alerts.emit(payload)
+        if intent_event is not None:
+            self.alerts.emit(intent_event)
+        if not findings and intent_event is None:
+            print(f"[{time.strftime('%H:%M:%S')}] ok  sequence={state.get('sequence')} age_s={state.get('age_s')}", flush=True)
         return findings
 
 

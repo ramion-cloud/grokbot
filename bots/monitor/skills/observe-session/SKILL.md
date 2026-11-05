@@ -50,8 +50,8 @@ Until `timeout_sec` elapsed:
 |------|--------|
 | Every 2–3s | Full-page or viewer-region screenshot (consistent crop across ticks) |
 | Same tick | `GET ${RAMION_BASE_URL}/api/state` if step 1 succeeded |
-| Same tick | Read any new Papaj Watcher JSON (`source=papaj-watcher`) from webhook inbox or JSONL tail |
-| After each tick | Evaluate the **exercise** rubric; if a Watcher event has `level=critical`, FAIL using that `rule` name |
+| Same tick | Read any new Papaj Watcher JSON (`source=papaj-watcher`) from webhook inbox or JSONL tail, including `type=intent_alert` |
+| After each tick | Evaluate the **exercise** rubric; if a Watcher event has `level=critical` or an `intent_alert` has `level=bad_intent`, FAIL and (for intent) forward `slack_text` to the Grok Bot Slack routine |
 
 Stop early when consecutive pass samples ≥ 2 and no Watcher `critical` is pending.
 
@@ -91,3 +91,4 @@ Do **not** subscribe to RTSP for hackathon grading. Sequential screenshots match
 | Blank screenshot | INCONCLUSIVE; suggest learner reload viewer |
 | `emergency_stop.latched` | FAIL `unexpected stop`; Tutor handles ops |
 | Watcher `critical` | FAIL with Watcher `rule`; do not recompute the heuristic |
+| Watcher `intent_alert` | Use `level`, `score`, `reasons`; post `slack_text` to Slack via the Grok Bot routine; never revoke access yourself |

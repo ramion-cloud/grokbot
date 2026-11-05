@@ -108,6 +108,29 @@ Deterministic checks, evaluated every poll:
 Critical findings request STOP; warnings do not. Repeated identical findings
 are cooldown-gated.
 
+## Intent detector
+
+`papaj_watcher/intent.py` aggregates those findings per control session
+(`control.owner_id` / `control.label`) over a sliding window (default 60s)
+and computes an explainable risk score.
+
+Signals include repeated `joint_near_limits` after warnings, clipped or
+out-of-limit targets, `rapid_command_bursts`, repeated `collision_torque`,
+motion or re-claim right after a soft stop / lease revocation, `vision_unsafe`,
+and stale-loop command changes.
+
+Levels: `normal` (not emitted), `suspicious`, `bad_intent`. Profiles:
+`novice` (isolated or decreasing after a warning) versus `deliberate`
+(escalating, ignoring warnings). `recommended_action` is `warn`,
+`soft_stop`, or `revoke_access_human_review`. Only recommendations — Watcher
+never e-stops or revokes access. A `soft_stop` recommendation still requires
+`--enable-stop` to POST `/api/stop`. Alerts use the same webhook/JSONL sinks,
+with cooldown unless the level escalates. The payload includes `slack_text`
+(`text` + Block Kit `blocks`) for a Grok Bot routine to post to Slack.
+
+Disable with `--no-intent` or `PAPAJ_INTENT=0`. Tune
+`PAPAJ_INTENT_WINDOW` and `PAPAJ_INTENT_COOLDOWN`.
+
 ## Optional vision layer
 
 Set `PAPAJ_VLM_BASE_URL` to an OpenAI-compatible or local chat endpoint
@@ -136,13 +159,15 @@ Live camera frames belong in a private evidence directory, not in git.
 Papaj Watcher is the safety observer; Monitor is the exercise grader. Do not
 copy these rules into Monitor.
 
-When a finding fires, Watcher writes one JSON object to stdout, optional JSONL
-(`--log` / `PAPAJ_LOG`), and optional webhook (`--webhook` / `PAPAJ_WEBHOOK_URL`).
-Point that webhook at a Grok Bot routine or Monitor intake so the teaching loop
-sees the same `level` (`info`, `warning`, `critical`) and `rule` names listed
-above. Monitor should treat `critical` as safety context for a FAIL, note
-`warning` in Evidence, and never recompute thresholds — those live in
-`thresholds.example.json`.
+When a finding or `intent_alert` fires, Watcher writes one JSON object to
+stdout, optional JSONL (`--log` / `PAPAJ_LOG`), and optional webhook
+(`--webhook` / `PAPAJ_WEBHOOK_URL`). Point that webhook at a Grok Bot routine
+or Monitor intake. Rule findings use `level` (`info`, `warning`, `critical`)
+and `rule` names. Intent events use `type=intent_alert` plus `slack_text`.
+Monitor should treat `critical` / `bad_intent` as safety context, note
+`warning` / `suspicious` in Evidence, forward intent Slack payloads to the
+configured routine, and never recompute thresholds — those live in
+`thresholds.example.json` and `IntentConfig`.
 
 See `docs/architecture.md` and `bots/monitor/skills/grading-rubric/SKILL.md`.
 
@@ -166,6 +191,9 @@ See `docs/architecture.md` and `bots/monitor/skills/grading-rubric/SKILL.md`.
 | `PAPAJ_VLM_API_KEY` | VLM bearer token |
 | `PAPAJ_VLM_MODEL` / `--vlm-model` | Model name |
 | `PAPAJ_VLM_CAN_STOP` / `--vlm-can-stop` | Let critical VLM findings request STOP |
+| `PAPAJ_INTENT` / `--no-intent` | Intent detector (default on; `--no-intent` or `PAPAJ_INTENT=0` disables) |
+| `PAPAJ_INTENT_WINDOW` / `--intent-window` | Sliding window in seconds (default 60) |
+| `PAPAJ_INTENT_COOLDOWN` / `--intent-cooldown` | Intent alert cooldown in seconds (default 30) |
 
 See `thresholds.example.json` and `deploy/papaj-watcher.env.example`.
 

@@ -169,6 +169,71 @@ Watcher writes the same JSON object to stdout, an optional JSONL log (`PAPAJ_LOG
 
 ---
 
+
+## Intent alert contract — **verified** (Papaj Watcher intent detector)
+
+Watcher aggregates per-session findings (`control.owner_id` / `control.label`) over a sliding window and may emit a second JSON object to the same JSONL log and webhook. `type` is `intent_alert`. Levels are `normal` (not emitted), `suspicious`, and `bad_intent`. `recommended_action` is `warn` | `soft_stop` | `revoke_access_human_review`. Soft-stop remains gated by `--enable-stop`. Watcher never e-stops and never revokes access itself.
+
+```json
+{
+  "type": "intent_alert",
+  "source": "papaj-watcher",
+  "ts": "2026-11-05T20:15:00+01:00",
+  "ts_epoch": 1762370100.0,
+  "level": "bad_intent",
+  "score": 18.5,
+  "session": {"owner_id": "owner-fixture", "label": "fixture-operator"},
+  "profile": "deliberate",
+  "reasons": [
+    {
+      "code": "repeated_joint_near_limits_after_warning",
+      "detail": "Repeated joint_near_limits after an earlier warning",
+      "weight": 3.0
+    },
+    {
+      "code": "collision_torque_repeats",
+      "detail": "collision_torque fired 2 times in the window",
+      "weight": 2.0
+    }
+  ],
+  "evidence": ["/var/lib/papaj-watcher/evidence/sim-frame.jpg"],
+  "recommended_action": "revoke_access_human_review",
+  "dry_run": true,
+  "slack_text": {
+    "text": "Papaj Watcher intent: bad_intent (score 18.5)\nSession: fixture-operator\nProfile: deliberate\nRecommended action: revoke_access_human_review (dry_run=true)\nReasons:\n- Repeated joint_near_limits after an earlier warning\nHuman review is required to revoke access. Watcher never e-stops or revokes automatically.",
+    "blocks": [
+      {
+        "type": "header",
+        "text": {"type": "plain_text", "text": "Intent bad_intent (score 18.5)", "emoji": true}
+      },
+      {
+        "type": "section",
+        "fields": [
+          {"type": "mrkdwn", "text": "*Session:*\nfixture-operator"},
+          {"type": "mrkdwn", "text": "*Profile:*\ndeliberate"},
+          {"type": "mrkdwn", "text": "*Action:*\n`revoke_access_human_review`"},
+          {"type": "mrkdwn", "text": "*Dry-run:*\ntrue"}
+        ]
+      },
+      {"type": "section", "text": {"type": "mrkdwn", "text": "*Reasons:*\n• Repeated joint_near_limits after an earlier warning"}},
+      {
+        "type": "context",
+        "elements": [
+          {
+            "type": "mrkdwn",
+            "text": "Recommended action only. Soft-stop is gated by `--enable-stop`. Never e-stop or revoke access automatically — a human decides."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`profile` is `benign`, `novice` (isolated or decreasing after warnings), or `deliberate` (escalating, ignoring warnings, motion/reclaim after stop, or repeated collision/vision signals). Dedup/cooldown applies unless the level escalates or the score jumps.
+
+Monitor and a Grok Bot routine should POST `slack_text` (plain `text` plus Block Kit `blocks`) to Slack. A human reviews `revoke_access_human_review`.
+
 ## Proposed routes (not verified)
 
 The paths below were drafted in the original scaffold. They are **not** verified on the live dashboard. Prefer the verified routes above.
@@ -204,5 +269,6 @@ See `bots/monitor/skills/grading-rubric/SKILL.md`.
 - [x] Document verified `GET /api/state` fields, camera JPEGs, and `POST /api/stop`.
 - [x] Point Monitor/Tutor skills at those routes instead of unverified `/api/v1/…` paths.
 - [x] Document Watcher webhook/JSONL alert names and levels.
+- [x] Document `intent_alert` schema and Slack `slack_text` payload.
 - [ ] Set private env `RAMION_BASE_URL` / `RAMION_DASHBOARD_URL` / `RAMION_VIEWER_URL` per deployment.
 - [ ] Point `PAPAJ_WEBHOOK_URL` at the Monitor / ops intake if Watcher should notify the teaching loop.
