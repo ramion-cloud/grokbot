@@ -54,6 +54,10 @@ class Thresholds:
     owner_flicker_count: int = 3
     motion_epsilon_deg: float = 1.5
     emit_cooldown_s: float = 2.0
+    # Soft demo "forbidden zones" (not hardware limits), e.g.
+    # [{"joint": "shoulder_pan", "below": -60, "name": "demo_left_zone"}].
+    demo_zones: list[dict[str, Any]] = field(default_factory=list)
+    demo_zone_dwell_s: float = 3.0
 
     def overlay(self, data: dict[str, Any]) -> "Thresholds":
         known = {item.name for item in fields(self)}
@@ -69,9 +73,40 @@ class Thresholds:
                     except (TypeError, ValueError):
                         continue
                 updates[key] = merged
+            elif key == "demo_zones":
+                updates[key] = parse_demo_zones(value)
             else:
                 updates[key] = value
         return replace_thresholds(self, **updates)
+
+
+def parse_demo_zones(value: Any) -> list[dict[str, Any]]:
+    """Validate demo zone entries: joint plus a numeric ``below`` and/or ``above`` bound."""
+    if not isinstance(value, list):
+        raise ValueError("demo_zones must be a list")
+    zones: list[dict[str, Any]] = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, dict) or not raw.get("joint"):
+            raise ValueError(f"demo_zones[{index}] needs a joint")
+        zone: dict[str, Any] = {"joint": str(raw["joint"])}
+        for bound in ("below", "above"):
+            if raw.get(bound) is not None:
+                zone[bound] = float(raw[bound])
+        if "below" not in zone and "above" not in zone:
+            raise ValueError(f"demo_zones[{index}] needs 'below' or 'above'")
+        zone["name"] = str(raw.get("name") or f"demo_zone_{index}")
+        zones.append(zone)
+    return zones
+
+
+def zone_violation(zone: dict[str, Any], position: float) -> str | None:
+    """Return a human message if ``position`` is inside the zone, else None."""
+    joint = zone["joint"]
+    if "below" in zone and position < zone["below"]:
+        return f"{joint} {position:.1f}° is below demo limit {zone['below']:g}°"
+    if "above" in zone and position > zone["above"]:
+        return f"{joint} {position:.1f}° is above demo limit {zone['above']:g}°"
+    return None
 
 
 def replace_thresholds(base: Thresholds, **updates: Any) -> Thresholds:

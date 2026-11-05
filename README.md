@@ -17,6 +17,8 @@ Getting started takes more than access to hardware. Beginners need guidance; rem
 
 **The idea:** Grok Bot becomes a coach that can see the result of your actions in the physical world.
 
+**Live demo:** a soft forbidden zone `shoulder_pan < -60°` triggers WATCHER's full path to Slack; see [`packages/watcher/demo/DEMO.md`](packages/watcher/demo/DEMO.md).
+
 ---
 
 **[Get robot access →](https://ramion.cloud/)** · [TUTOR & template setup](tutor/) · [WATCHER](packages/watcher/)

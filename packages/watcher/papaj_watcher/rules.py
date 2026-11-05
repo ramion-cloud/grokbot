@@ -8,7 +8,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .config import Thresholds
+from .config import Thresholds, zone_violation
 
 LEVEL_INFO = "info"
 LEVEL_WARNING = "warning"
@@ -133,6 +133,7 @@ class RuleEngine:
         findings.extend(self._command_bursts(state, now))
         findings.extend(self._lease(state, now))
         findings.extend(self._health(state))
+        findings.extend(self._demo_zones(state))
 
         if is_latched(state):
             for item in findings:
@@ -208,6 +209,28 @@ class RuleEngine:
                     {"clip": state.get("clip")},
                 )
             )
+        return findings
+
+    def _demo_zones(self, state: dict[str, Any]) -> list[Finding]:
+        """Soft demo zones. Warning level only: never sets should_stop on its own."""
+        findings: list[Finding] = []
+        measured = float_map(state.get("measured"))
+        for zone in self.thresholds.demo_zones:
+            position = measured.get(zone["joint"])
+            if position is None:
+                continue
+            message = zone_violation(zone, position)
+            if message:
+                findings.append(
+                    Finding(
+                        level=LEVEL_WARNING,
+                        rule="forbidden_zone",
+                        message=message,
+                        details={"joint": zone["joint"], "position": position, "zone": zone["name"], "demo": True,
+                                 **{k: zone[k] for k in ("below", "above") if k in zone}},
+                        should_stop=False,
+                    )
+                )
         return findings
 
     def _max_vel(self, state: dict[str, Any], joint: str) -> float:
