@@ -1,26 +1,30 @@
-# RAMION — Your first real robot move. Guided by Grok.
+[![RAMION — Robots as a Service](docs/assets/ramion-banner.png)](https://ramion.cloud/)
 
-**Learn robotics by controlling a real arm — with an AI tutor beside you.**
+# Guide the learner. Protect the robot.
 
-Getting started takes more than access to hardware. Beginners need guidance; remote lab operators need visibility. RAMION brings both to the same robot session.
+**Grok Bot workflows for learning on real robots — and monitoring how they're used.**
 
-![RAMION: a learner guided by TUTOR operates a real robot while WATCHER observes the session](docs/ramion-solution.png)
-<sub>Concept overview. TUTOR runs in Grok Bot; WATCHER is a separate monitoring service. Automatic software stop is optional and off by default.</sub>
+Remote robotics has two challenges: beginners need a coach, and operators need to protect real hardware. Our hackathon project tackles both.
 
-## From curious to in control
+| For the learner: TUTOR | For the operator: WATCHER |
+| --- | --- |
+| Teaches the basics and checks understanding. | Observes camera views and robot readings. |
+| Guides real exercises: open the gripper, close it, rotate the base 90°. | Flags risky behavior and repeated misuse. |
+| Compares before/after screenshots and gives feedback when you say “done.” | Sends Slack alerts so a human can intervene. |
 
-1. **Learn.** TUTOR explains the basics, checks your understanding with three questions, and gives you the app link.
-2. **Move.** Open the gripper. Close it. Rotate the arm's base by 90°.
-3. **Get feedback.** Say “done.” TUTOR compares screenshots from before and after your attempt, using robot readings to check the rotation.
+![RAMION solution: tutoring the learner and monitoring the robot session](docs/ramion-solution.png)
+<sub>Concept overview. TUTOR runs in Grok Bot; WATCHER uses a separate monitoring service. Optional software stop is off by default.</sub>
 
-**For the operator:** WATCHER checks camera views and robot readings, flagging concerning activity in Slack for human review.
+**The experience:** learn → pass the quiz → operate a real arm → get feedback, while the session is monitored.
 
-**The idea:** Grok Bot becomes a coach that can see the result of your actions in the physical world.
+## What we built for the hackathon
 
-**Live demo:** a soft forbidden zone `shoulder_pan < -60°` triggers WATCHER's full path to Slack; see [`packages/watcher/demo/DEMO.md`](packages/watcher/demo/DEMO.md).
+**The submission is the Grok Bot tutoring and monitoring workflows, with supporting observation and alerting code.**
+
+[RAMION](https://ramion.cloud/) is a startup providing **Robots as a Service**. The physical robots and RAMION app already exist and **are not part of this hackathon submission**. They provide the real-world environment for our bots.
 
 ---
 
-**[Get robot access →](https://ramion.cloud/)** · [TUTOR & template setup](tutor/) · [WATCHER](packages/watcher/)
+[Monitoring demo →](packages/watcher/demo/DEMO.md) · [TUTOR & template setup](tutor/) · [WATCHER](packages/watcher/)
 
-<sub>Wrocław Grok Bot Hackathon · November 5, 2026 · Prototype: Grok Bot tutor recipe + runnable monitoring service. [Demo checks](tutor/DEMO_CHECKS.md).</sub>
+<sub>Wrocław Grok Bot Hackathon · November 5, 2026 · [ramion.cloud](https://ramion.cloud/)</sub>
