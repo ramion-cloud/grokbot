@@ -1,0 +1,21 @@
+[project]
+name = "papaj-watcher"
+version = "0.1.0"
+description = "Standalone HTTP observer for a Ramion-style arm dashboard."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+annotate = ["Pillow"]
+dev = ["pytest"]
+
+[project.scripts]
+papaj-watcher = "papaj_watcher.watcher:main"
+
+[tool.setuptools.packages.find]
+include = ["papaj_watcher*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

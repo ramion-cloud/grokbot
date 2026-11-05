@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.jsonl
+evidence/
+samples/
+logs/
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+*.jpg
+!packages/watcher/tests/fixtures/*.jpg

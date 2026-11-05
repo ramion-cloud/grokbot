@@ -1,0 +1,55 @@
+{
+  "robot": "so101",
+  "joints": ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"],
+  "gripper": "gripper",
+  "limits": {
+    "shoulder_pan": [-105.0, 105.0],
+    "shoulder_lift": [-95.0, 95.0],
+    "elbow_flex": [-92.0, 92.0],
+    "wrist_flex": [-95.0, 95.0],
+    "wrist_roll": [-150.0, 150.0],
+    "gripper": [0.0, 100.0]
+  },
+  "measured": {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": -20.0,
+    "elbow_flex": 40.0,
+    "wrist_flex": 3.0,
+    "wrist_roll": 0.0,
+    "gripper": 35.0
+  },
+  "command": {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": -20.0,
+    "elbow_flex": 40.0,
+    "wrist_flex": 3.0,
+    "wrist_roll": 0.0,
+    "gripper": 35.0
+  },
+  "target": {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": -20.0,
+    "elbow_flex": 40.0,
+    "wrist_flex": 3.0,
+    "wrist_roll": 0.0,
+    "gripper": 35.0
+  },
+  "torque": true,
+  "speed": 30.0,
+  "clip": null,
+  "faults": [],
+  "loop_hz": 20,
+  "age_s": 0.04,
+  "sequence": 12,
+  "loop_ok": true,
+  "connected": true,
+  "control": {"owner_id": "owner-fixture", "label": "fixture-operator", "expires_in_s": 1.2},
+  "sample": {"age_s": 0.04, "sequence": 12, "loop_ok": true, "connected": true},
+  "events": [],
+  "emergency_stop": {"latched": false, "generation": 0, "hold_status": "not_requested", "hold_error": null},
+  "cameras": {
+    "overhead": {"status": "live", "age_s": 0.12, "url": "/cameras/overhead.mjpg", "error": null},
+    "wrist": {"status": "live", "age_s": 0.11, "url": "/cameras/wrist.mjpg", "error": null},
+    "observer": {"status": "live", "age_s": 0.13, "url": "/cameras/observer.mjpg", "error": null}
+  }
+}
