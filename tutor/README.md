@@ -1,72 +1,35 @@
 # RAMION TUTOR
 
-A Grok Bot onboarding coach for a robot-control app: teach, quiz, share the app link, guide practice, and evaluate visible evidence.
+A learner opens the bot and starts learning: short robotics intro, three-question quiz, app link, guided tasks, and feedback from visible progress.
 
-## Start in five minutes
+The app address is built into [TUTOR_PROMPT.md](TUTOR_PROMPT.md). Learners do not supply configuration. The bot handles observation automatically and requests a screenshot only when it cannot inspect the learner's screen.
 
-1. In Grok Bot, select **New Bot (+)** and name it **TUTOR**.
-2. Paste [TUTOR_PROMPT.md](TUTOR_PROMPT.md) into the new chat. These are the bot's source instructions, not an executable configuration format.
-3. Privately supply your app URL and evidence mode:
-   - `shared_screen`: learner uses the same browser in the bot's computer preview, if handoff is available.
-   - `uploaded_screenshots`: learner operates in their browser and provides before/after screenshots.
-4. Ask the bot to open the app read-only and confirm it can see a current camera view. If private-network access fails, use screenshot mode for the first demo.
-5. Send **Start onboarding**.
+## Prepare the bot (creator only)
 
-The app URL is deployment-specific and intentionally absent from this public repository. No API key is required by these instructions beyond the user's Grok Bot account and its available capabilities.
+1. Create a new Grok Bot named **RAMION TUTOR**.
+2. Paste the complete [TUTOR_PROMPT.md](TUTOR_PROMPT.md) into its chat. It starts the lesson immediately.
+3. Run the [demo checks](DEMO_CHECKS.md). If updating an existing bot, this prompt explicitly replaces its previous instructions.
+4. Before physical practice, the session host checks the robot, stop procedure, and available beginner exercise.
 
-## One-hour scope
+## Publish a Grok Bot template
 
-| Time | Outcome |
-| --- | --- |
-| 0–10 min | Create TUTOR; confirm screen access or use screenshot mode |
-| 10–25 min | Run the intro and quiz; deliberately answer one question incorrectly |
-| 25–40 min | Run two observation tasks with before/after evidence |
-| 40–50 min | Try missing evidence and a request to skip the quiz |
-| 50–60 min | Record the demo; link this folder in the submission |
+1. Click the bot's name at the top of its chat.
+2. Select **Share → Create a copy**.
+3. Review the generated template. Ensure it includes the full learner instructions and fixed app link, starts fresh for each learner, and does not carry your test learner's progress.
+4. Select **Publish** on the template card, then **Copy link**.
+5. Add the resulting link to this README and your submission. Test an imported copy by sending **Hi**: it should start teaching without setup questions.
 
-Use one bot and check when the learner says **check**. Continuous polling and a dedicated monitoring bot are optional extensions. Enable physical practice only when the operator has specified and validated the exercise and stop procedure.
+If **Create a copy** is unavailable, template sharing may be restricted by your team. On mobile, the documented action is **Share as Template**. After changing the source bot, use **Share → Update template** to update the published template.
 
-## What to demonstrate
+A template gives recipients a copy of the bot; it does not transfer the creator's computer, sign-ins, or network access. The host must arrange access to the private robot app for participants. The fixed lab address is part of this project-specific recipe; it does not make the app publicly reachable.
 
-A learner makes a mistake, gets a short explanation, passes the quiz, opens the app, completes a visible task, and receives evidence-based feedback. This demonstrates Grok Bot doing the work at runtime.
+[Official Grok Bot template documentation](https://docs.x.ai/grok-bot/bots#share-a-bot), checked 2026-11-05.
 
-The quiz gates the lesson flow and app-link reveal. It is **not server-enforced access control**. Screenshots cannot prove an entire motion trajectory or malicious intent.
+## GitHub and template
 
-## How it fits with WATCHER
+GitHub holds the versioned source and checks. The Grok Bot template is the installable learner experience. Publishing one does not automatically publish or update the other.
 
-```mermaid
-flowchart LR
-    T["TUTOR · Grok Bot"] -->|"Teach and quiz"| U["Learner"]
-    T -->|"After passing: app link and tasks"| U
-    U -->|"Operate"| A["Robot app + physical arm"]
-    A -->|"Learner-screen evidence"| T
-    A -->|"Session observations"| W["WATCHER · Grok Bot"]
-    W -->|"Verified stop action"| S["Robot stop"]
-    W -->|"Incident alert"| L["Slack"]
-```
+**Template URL:** Not yet recorded here.
+**Live validation:** Not run during preparation; record actual results in the checklist.
 
-WATCHER is a separate team contribution. This folder implements its tutor-side concept and pause behavior, not WATCHER's monitor, stop adapter, or Slack integration. The full diagram describes the intended system.
-
-A separate browser may observe the same physical robot but not the learner's browser-local camera layout. Check layout tasks from the learner's actual screen. Stop commands need a tested robot-side implementation; closing an app is not proof that motion stopped.
-
-## Why this belongs on GitHub
-
-The reproducible source is the bot's instructions, assessment rubric, setup procedure, and demo checks. A separate web app is unnecessary for this prototype. Reviewers can reproduce the bot by pasting the versioned instructions into Grok Bot.
-
-Whether an instruction-based submission meets all judging requirements remains the organizer's decision; no unpublished hackathon rules have been verified.
-
-## Validation status
-
-Prepared instructions and demo checks only. No live Grok Bot onboarding, robot motion, monitoring loop, stop action, or Slack delivery was executed during preparation. Record actual results with [DEMO_CHECKS.md](DEMO_CHECKS.md); do not present unchecked items as passing.
-
-## Product references
-
-- [Create and manage Bots](https://docs.x.ai/grok-bot/bots): create a named bot and give its role through chat; optional template sharing.
-- [Computer and apps](https://docs.x.ai/grok-bot/computer-and-apps): bot computer, screen handoff, and shared-account resources.
-- [Private networks](https://docs.x.ai/grok-bot/private-networks): private addresses may require organization-approved networking.
-
-Checked 2026-11-05. Available features depend on the installed version and account.
-
-## Solution drawing
-
-![RAMION solution architecture](../docs/ramion-solution.png)
+The quiz controls the lesson flow, not server permissions. Grade only visible results, and distinguish observation onboarding from physical practice.
