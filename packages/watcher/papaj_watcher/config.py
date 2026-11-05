@@ -91,6 +91,7 @@ class Settings:
     log_path: Path | None = None
     evidence_dir: Path | None = None
     webhook_url: str | None = None
+    webhook_auth: str | None = field(default=None, repr=False)
     vlm_enabled: bool = False
     vlm_base_url: str | None = None
     vlm_api_key: str | None = None
@@ -98,6 +99,9 @@ class Settings:
     vlm_timeout_s: float = 20.0
     vlm_can_stop: bool = False
     once: bool = False
+    intent_enabled: bool = True
+    intent_window_s: float = 60.0
+    intent_cooldown_s: float = 30.0
     thresholds: Thresholds = field(default_factory=Thresholds)
 
     def is_remote_host(self) -> bool:
@@ -199,6 +203,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Warning webhook URL, e.g. a Grok Bot routine trigger (env PAPAJ_WEBHOOK_URL)",
     )
     parser.add_argument(
+        "--webhook-auth",
+        default=os.environ.get("PAPAJ_WEBHOOK_AUTH"),
+        help="Authorization header value sent verbatim with webhook POSTs, e.g. 'Bearer xyz' "
+        "(env PAPAJ_WEBHOOK_AUTH). Never logged.",
+    )
+    parser.add_argument(
         "--config",
         default=os.environ.get("PAPAJ_CONFIG"),
         help="JSON file of threshold overrides (env PAPAJ_CONFIG)",
@@ -248,6 +258,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Poll a single cycle and exit",
     )
+    parser.add_argument(
+        "--no-intent",
+        action="store_true",
+        help="Disable session intent scoring (enabled by default)",
+    )
+    parser.add_argument(
+        "--intent-window",
+        type=float,
+        default=float(os.environ.get("PAPAJ_INTENT_WINDOW", "60")),
+        help="Intent sliding window in seconds (env PAPAJ_INTENT_WINDOW)",
+    )
+    parser.add_argument(
+        "--intent-cooldown",
+        type=float,
+        default=float(os.environ.get("PAPAJ_INTENT_COOLDOWN", "30")),
+        help="Intent alert cooldown in seconds (env PAPAJ_INTENT_COOLDOWN)",
+    )
     return parser
 
 
@@ -267,6 +294,7 @@ def settings_from_args(argv: list[str] | None = None) -> Settings:
         log_path=_optional_path(args.log),
         evidence_dir=_optional_path(args.evidence),
         webhook_url=args.webhook or None,
+        webhook_auth=args.webhook_auth or None,
         vlm_enabled=bool(args.vlm),
         vlm_base_url=args.vlm_base_url or None,
         vlm_api_key=os.environ.get("PAPAJ_VLM_API_KEY") or os.environ.get("OPENAI_API_KEY"),
@@ -274,6 +302,11 @@ def settings_from_args(argv: list[str] | None = None) -> Settings:
         vlm_timeout_s=max(1.0, float(args.vlm_timeout)),
         vlm_can_stop=bool(args.vlm_can_stop),
         once=bool(args.once),
+        intent_enabled=(not bool(args.no_intent)) and (
+            True if os.environ.get("PAPAJ_INTENT") is None else _truthy(os.environ.get("PAPAJ_INTENT"))
+        ),
+        intent_window_s=max(5.0, float(args.intent_window)),
+        intent_cooldown_s=max(1.0, float(args.intent_cooldown)),
         thresholds=thresholds,
     )
     settings.validate_stop_safety()

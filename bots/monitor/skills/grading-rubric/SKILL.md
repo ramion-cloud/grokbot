@@ -65,6 +65,7 @@ Still moving: any joint has `|target[j] - measured[j]| > motion_epsilon_deg`
 | `inconclusive` | Cannot load viewer or API unreachable |
 | `unexpected stop` | `emergency_stop.latched === true` during the exercise |
 | Watcher `rule` name | A Papaj Watcher alert with `level=critical` arrived during the exercise — copy the Watcher `rule` (for example `collision_torque`), do not invent a parallel name |
+| `intent_alert` | A Papaj Watcher `type=intent_alert` with `level=bad_intent` arrived — copy `score`, `profile`, and reason `code`s; escalate `slack_text` to the Grok Bot Slack routine |
 
 ---
 
@@ -87,6 +88,8 @@ Behavior:
 | `critical` | FAIL the exercise; Evidence must include `rule`, `level`, and `message`. Recommend Tutor consider `POST /api/stop` if `should_stop` is true and `dry_run` is true. |
 | `warning` | Do not automatic-FAIL. Mention `rule` + `level` in Evidence. |
 | `info` | Ignore for grading. |
+| `intent_alert` `suspicious` | Note `score` and `recommended_action` in Evidence. Optional Slack forward. |
+| `intent_alert` `bad_intent` | FAIL; forward `slack_text` (plain text + Block Kit) to the Grok Bot routine that posts to Slack. If `recommended_action` is `revoke_access_human_review`, wait for a human. If it is `soft_stop`, recommend Tutor/`--enable-stop` — do not e-stop or revoke yourself. |
 
 Never re-evaluate joint proximity, velocity, temperature, current, load, tracking error, command bursts, or lease flicker inside this rubric.
 
@@ -106,4 +109,5 @@ Never re-evaluate joint proximity, velocity, temperature, current, load, trackin
 Evidence: api=measured.gripper=92,limits=[0,100]; screenshots=4
 Evidence: api=n/a; screenshots=5; screenshot-only mode
 Evidence: watcher=critical,rule=collision_torque,dry_run=true
+Evidence: intent=bad_intent,score=18.5,action=revoke_access_human_review
 ```
