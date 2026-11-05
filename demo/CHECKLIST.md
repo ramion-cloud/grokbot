@@ -1,19 +1,20 @@
 # Judge demo checklist (~3 minutes)
 
-Use this path live in the **group channel** with Tutor + Monitor connected to Tailscale and `:8780` reachable.
+Use this path live in the **group channel** with Tutor + Monitor able to reach the dashboard (`RAMION_BASE_URL`).
 
 ## Before you start (presenter, off-camera)
 
-- [ ] Tailscale up on learner laptop and Monitor agent environment.
-- [ ] `RAMION_BASE_URL` / viewer loads: http://ramion-server-01.tail0fbdb0.ts.net:8780/
+- [ ] Learner and Monitor agent can reach the dashboard.
+- [ ] `RAMION_BASE_URL` / `RAMION_VIEWER_URL` load the viewer (set privately; do not paste secrets into the repo).
 - [ ] Group channel includes learner, Tutor, Monitor.
-- [ ] Optional: Discord ops webhook tested.
+- [ ] Optional: Papaj Watcher running in dry-run with `PAPAJ_WEBHOOK_URL` or a JSONL log Monitor can read.
+- [ ] Optional: ops webhook tested.
 - [ ] README architecture diagram ready to show (screen share tab).
 
 ## Minute 0:00 — Framing (presenter)
 
-- [ ] State repo was **empty**; this is the **agent-native recipe** for Ramion (not the robot server binary).
-- [ ] Name agents: Tutor teaches + gates; Monitor grades; Watcher **out of scope**; hard e-stop on robot.
+- [ ] This repo is the **agent-native recipe** for Ramion (not the robot server binary).
+- [ ] Name agents: Tutor teaches + gates; Monitor grades; Watcher (`packages/watcher`) emits safety alerts; hard e-stop on robot.
 - [ ] Show mermaid diagram in `README.md` or `docs/architecture.md`.
 
 ## Minute 0:30 — Tutor intro + quiz
@@ -25,7 +26,7 @@ Use this path live in the **group channel** with Tutor + Monitor connected to Ta
 
 ## Minute 1:30 — Viewer access
 
-- [ ] Tutor posts MagicDNS viewer URL only after 3/3 pass.
+- [ ] Tutor posts `RAMION_VIEWER_URL` only after 3/3 pass.
 - [ ] Learner confirms page loads (share viewer tab briefly).
 
 ## Minute 2:00 — Graded exercise
@@ -33,7 +34,7 @@ Use this path live in the **group channel** with Tutor + Monitor connected to Ta
 - [ ] Tutor assigns **Exercise 1: open-gripper** (exercise-script skill).
 - [ ] Learner operates gripper **Open** in UI; says “done”.
 - [ ] Tutor invokes Monitor: `grade exercise-id=open-gripper timeout_sec=60`.
-- [ ] Monitor runs observe-session (screenshots + optional API).
+- [ ] Monitor runs observe-session (screenshots + `GET /api/state`).
 
 ## Minute 2:30 — Result
 
@@ -42,8 +43,8 @@ Use this path live in the **group channel** with Tutor + Monitor connected to Ta
 
 ## Minute 2:45 — Safety boundary (presenter)
 
-- [ ] One sentence: soft-stop via API + Discord; hardware e-stop not in chat.
-- [ ] Watcher handled by colleague agent — not shown today.
+- [ ] One sentence: software soft-stop is `POST /api/stop`; hardware e-stop is not in chat.
+- [ ] Watcher lives in `packages/watcher`; Monitor reads its webhook/JSONL alerts (`level`, `rule`) and does not re-run those heuristics. Dry-run is the default.
 
 ## Stretch (if time)
 
@@ -56,15 +57,16 @@ Use this path live in the **group channel** with Tutor + Monitor connected to Ta
 |-------|---------------------|
 | Arm offline | Show Monitor INCONCLUSIVE message + screenshot rubric in skills |
 | Network down | Walk through `docs/architecture.md` data flow |
-| API not built | Emphasize proposed contract in `api/contract.md` |
+| `GET /api/state` unreachable | Screenshot-only grading; show verified contract in `api/contract.md` |
 
 ## Artifacts to point judges to
 
 | File | Purpose |
 |------|---------|
 | `README.md` | Pitch + diagram |
-| `docs/architecture.md` | Boundaries + screenshot vs RTSP |
-| `api/contract.md` | Honest proposed HTTP surface |
+| `docs/architecture.md` | Boundaries + screenshot vs RTSP + Watcher alerts |
+| `api/contract.md` | Verified HTTP surface + Watcher alert JSON |
+| `packages/watcher/` | Safety observer (dry-run by default) |
 | `bots/tutor/skills/` | Executable teaching logic |
 | `bots/monitor/skills/` | Grading + observation |
 | `SETUP.md` | Repro steps |
@@ -72,6 +74,6 @@ Use this path live in the **group channel** with Tutor + Monitor connected to Ta
 ## Success definition for judging
 
 - [ ] Multi-agent **coordination** visible in channel (Tutor ≠ grader).
-- [ ] Tailscale **private** reachability explained.
+- [ ] Private **reachability** explained without pasting secrets.
 - [ ] Grok Bot used as **operational agents**, not a one-shot code generator.
-- [ ] Safety model honest (soft vs hard stop, Watcher boundary).
+- [ ] Safety model honest (soft vs hard stop; Watcher alerts vs Monitor grades).

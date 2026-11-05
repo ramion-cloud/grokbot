@@ -1,182 +1,208 @@
-# Ramion server HTTP contract (proposed)
+# Ramion dashboard HTTP contract
 
-**Base URL (tailnet):**
+**Base URL:** set `RAMION_BASE_URL` (Monitor/Tutor) or `RAMION_DASHBOARD_URL` (Papaj Watcher) in a private environment. Do not commit hostnames, addresses, or tokens.
 
-- Short: `http://ramion-server-01:8780`
-- MagicDNS: `http://ramion-server-01.tail0fbdb0.ts.net:8780`
-
-> **Status:** Endpoints below are **proposed** for alignment between the live app at `:8780`, Tutor/Monitor skills, and the robot stack. They are **not** verified as implemented in this empty scaffold repo. Mark server-side gaps as **TODO** during integration.
+> **Status:** Routes and fields marked **verified** match the live dashboard/panel contract used by Papaj Watcher. Items marked **proposed** were part of the original scaffold and are **not** verified on the live server — do not call them unless a later inventory confirms them.
 
 ## Conventions
 
-- JSON request/response bodies unless noted.
-- Errors: `{ "error": "code", "message": "human readable" }` with appropriate HTTP status.
-- Auth: **TODO** — document whether tailnet membership is sufficient or if `Authorization: Bearer …` is required.
+- JSON request/response bodies unless noted (`image/jpeg` for snapshots).
+- Errors are typically `{ "error": "…" }` with an appropriate HTTP status.
+- Auth: tailnet or other private reachability is configured outside this repo. **TODO** if a bearer token is added later.
+- Soft-stop is `POST /api/stop`. It is not a hardware e-stop.
 
 ---
 
-## Viewer (HTML)
+## Verified routes
 
-### `GET /`
+### `GET /api/state` — **verified**
 
-**Purpose:** Live teleoperation viewer (learner UI).
+**Purpose:** Single telemetry snapshot for Watcher rules, Monitor grading, and Tutor status.
 
-**Response:** `text/html` — interactive page with arm visualization and gripper controls.
-
-**Monitor usage:** Navigate with browser tool; capture screenshots on cadence.
-
-**TODO:** Confirm exact path if viewer is mounted at `/viewer` instead of `/`.
-
----
-
-## Read state
-
-### `GET /api/v1/state` *(proposed)*
-
-**Purpose:** Single snapshot for Monitor grading and Tutor status messages.
-
-**Response 200 (example):**
+**Response 200** (`application/json`). Verified top-level fields:
 
 ```json
 {
+  "robot": "so101",
+  "joints": ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"],
+  "limits": {
+    "shoulder_pan": [-105.0, 105.0],
+    "gripper": [0.0, 100.0]
+  },
+  "measured": {
+    "shoulder_pan": 0.0,
+    "gripper": 35.0
+  },
+  "command": {
+    "shoulder_pan": 0.0,
+    "gripper": 35.0
+  },
+  "target": {
+    "shoulder_pan": 0.0,
+    "gripper": 35.0
+  },
+  "torque": true,
+  "speed": 30.0,
+  "clip": null,
+  "faults": [],
+  "loop_hz": 20,
+  "age_s": 0.04,
+  "sequence": 12,
+  "loop_ok": true,
   "connected": true,
-  "session_id": "abc123",
-  "joints": {
-    "j1": 0.0,
-    "j2": -0.5,
-    "j3": 1.2,
-    "j4": 0.0,
-    "j5": 0.0,
-    "j6": 0.0
+  "control": {
+    "owner_id": null,
+    "label": null,
+    "expires_in_s": 0.0
   },
-  "joint_units": "rad",
-  "gripper": {
-    "open": true,
-    "position_normalized": 1.0
+  "sample": {
+    "age_s": 0.04,
+    "sequence": 12,
+    "loop_ok": true,
+    "connected": true
   },
-  "motion": {
-    "busy": false,
-    "last_command": "gripper_open"
+  "events": [],
+  "emergency_stop": {
+    "latched": false,
+    "generation": 0,
+    "hold_status": "not_requested",
+    "hold_error": null
   },
-  "safety": {
-    "soft_stopped": false,
-    "estop_latched": false
+  "cameras": {
+    "overhead": {"status": "live", "age_s": 0.12, "url": "/cameras/overhead.mjpg", "error": null},
+    "wrist": {"status": "live", "age_s": 0.11, "url": "/cameras/wrist.mjpg", "error": null},
+    "observer": {"status": "live", "age_s": 0.13, "url": "/cameras/observer.mjpg", "error": null}
   }
 }
 ```
 
 **Field notes:**
 
-| Field | Use in grading |
-|-------|----------------|
-| `gripper.open` | Primary signal for open/close exercises |
-| `gripper.position_normalized` | Fallback if boolean ambiguous (threshold **TODO**) |
-| `motion.busy` | Wait until false before final grade |
-| `safety.soft_stopped` | Fail active exercise if true unexpectedly |
+| Field | Meaning |
+|-------|---------|
+| `robot` | Robot name string |
+| `joints` | **List of joint names** (not a map of angles) |
+| `limits` | Per-joint `[low, high]` |
+| `measured` | Latest measured pose, keyed by joint name |
+| `command` | Last command sent to the servos |
+| `target` | Operator/controller target pose |
+| `torque` | Whether torque is enabled |
+| `speed` | Panel speed cap |
+| `clip` | Null, or a message when a target was clipped to a limit |
+| `faults` | List of servo/link fault strings (English or Polish wording may appear) |
+| `loop_hz` | Recent control-loop tick rate |
+| `age_s` | Age of the latest joint sample, seconds |
+| `sequence` | Monotonic sample counter |
+| `loop_ok` | Control loop healthy |
+| `connected` | Arm link connected |
+| `control.owner_id` | Lease owner, or null if nobody holds control |
+| `control.label` | Operator label for the lease |
+| `control.expires_in_s` | Seconds until the heartbeat lease expires |
+| `sample` | Mirror of freshness fields (`age_s`, `sequence`, `loop_ok`, `connected`) |
+| `events` | Recent controller events (`timestamp`, `level`, `message`) |
+| `emergency_stop` | Latch object (`latched`, `generation`, `hold_status`, `hold_error`) |
+| `cameras` | Per-role camera status (`overhead`, `wrist`, `observer`) |
 
-**TODO:** Confirm joint count/names on real arm.  
-**TODO:** Confirm whether `estop_latched` is exposed to API or hardware-only.
+There is no verified `gripper.open` boolean, `motion.busy`, or `safety.soft_stopped` object. Use `state.gripper` when present as the gripper **joint name**, then read `measured[gripper]`, `target[gripper]`, and `limits[gripper]`. Infer “still moving” when any `|target[j] - measured[j]|` exceeds `motion_epsilon_deg` from [`packages/watcher/thresholds.example.json`](../packages/watcher/thresholds.example.json) (default `1.5`). Treat `emergency_stop.latched === true` as a software stop already held.
 
----
+Optional maps such as `temperature(s)`, `current(s)`, `load(s)`, `max_vel`, or a nested `telemetry` object may appear; Watcher rules use them when present and stay quiet otherwise.
 
-## Commands *(proposed — server may already expose via UI only)*
+### `GET /cameras/{overhead,wrist,observer}.jpg` — **verified**
 
-### `POST /api/v1/gripper`
+**Purpose:** Still JPEG snapshot for a named camera role.
 
-**Body:**
+**Response 200:** `image/jpeg`. Missing or stale frames may return a non-200 (for example `503`) with a JSON error.
 
-```json
-{ "action": "open" }
-```
+Papaj Watcher polls these paths. Multipart `/cameras/{role}.mjpg` streams exist on some dashboards; Watcher does not subscribe to them.
 
-or
+### `POST /api/stop` — **verified** (soft stop)
 
-```json
-{ "action": "close" }
-```
+**Purpose:** Software hold. Keeps torque on so the arm does not drop, sets target/command to the measured pose, and revokes the operator lease. **Not** a hardware e-stop and **not** a latched emergency-stop.
 
-**Response 202:**
+**Request:** `Content-Type: application/json` and body `{}`. No control token is required.
 
-```json
-{ "accepted": true, "command_id": "cmd-789" }
-```
+**Who may call it:**
 
-**TODO:** Whether Tutor/learner may call this or UI-only. Bots should **not** drive motion for hackathon grading except via learner in viewer unless explicitly allowed.
+- Papaj Watcher, only when `--enable-stop` is set (default **off** / dry-run). Non-loopback URLs also require `--confirm-remote-stop`.
+- Tutor, once per incident, when the learner asks to stop or a Watcher `critical` alert is forwarded.
 
-### `POST /api/v1/motion/preset` *(proposed)*
-
-**Body:**
-
-```json
-{ "preset": "home" }
-```
-
-**Response 202:** `{ "accepted": true, "command_id": "cmd-790" }`
-
-**TODO:** List valid preset names on real server (`home`, `ready`, etc.).
-
----
-
-## Soft stop (bot-safe)
-
-### `POST /api/v1/control/soft-stop` *(proposed)*
-
-**Purpose:** Software motion halt + session freeze. **Not** a substitute for hardware e-stop.
-
-**Body (optional):**
-
-```json
-{ "reason": "learner_requested", "source": "tutor_bot" }
-```
-
-**Response 200:**
-
-```json
-{ "soft_stopped": true, "message": "Motion disabled until ops reset" }
-```
-
-**TODO:** Confirm reset procedure (`POST /api/v1/control/reset-soft-stop`?) and ops-only auth.
+Do not call latched emergency-stop routes from bots.
 
 ---
 
-## Health
+## Watcher alert contract — **verified** (Papaj Watcher output)
 
-### `GET /api/v1/health` *(proposed)*
-
-**Response 200:**
+Watcher writes the same JSON object to stdout, an optional JSONL log (`PAPAJ_LOG`), and an optional webhook (`PAPAJ_WEBHOOK_URL`):
 
 ```json
-{ "ok": true, "version": "0.0.0" }
+{
+  "source": "papaj-watcher",
+  "ts": "2026-11-05T19:00:00+01:00",
+  "ts_epoch": 1762365600.0,
+  "level": "warning",
+  "rule": "joint_near_limits",
+  "message": "shoulder_pan is 7.0 deg from its limit",
+  "details": {},
+  "should_stop": false,
+  "dry_run": true,
+  "stop_requested": false,
+  "evidence": []
+}
 ```
 
-Monitor may call before grading to avoid false `FAIL`.
+**Severity levels:** `info` | `warning` | `critical`.
+
+**Rule names** (do not rename in Monitor; do not reimplement the heuristics):
+
+| `rule` | Typical meaning |
+|--------|-----------------|
+| `joint_near_limits` | Measured pose close to `limits` |
+| `velocity_spike` | Derived velocity vs `max_vel` / default caps |
+| `temperature_spike` | Temperature map present and high |
+| `current_spike` | Current map present and high |
+| `collision_torque` | Tracking error, load spike, or servo fault |
+| `rapid_command_bursts` | Many target/command changes in a short window |
+| `lease_anomaly` | Motion without a lease, owner flicker, expiry while moving, stale sample, disconnect |
+| `vision_unsafe` | Optional VLM finding |
+
+`should_stop` is true for `critical` findings unless `emergency_stop.latched` is already true. Thresholds live in [`packages/watcher/thresholds.example.json`](../packages/watcher/thresholds.example.json). Monitor consumes these alerts; it does not duplicate the rule engine.
 
 ---
 
-## Discord ops hook *(optional, out of band)*
+## Proposed routes (not verified)
 
-Not part of `:8780` necessarily — Tutor may POST to a Discord webhook when soft-stop fires.
+The paths below were drafted in the original scaffold. They are **not** verified on the live dashboard. Prefer the verified routes above.
 
-**TODO:** Document webhook env var name on Grok Bot deployment (`DISCORD_OPS_WEBHOOK_SECRET_NAME`).
+| Proposed path | Live substitute |
+|---------------|-----------------|
+| `GET /api/v1/state` | `GET /api/state` |
+| `GET /api/v1/health` | `GET /api/state` (HTTP 200 means the dashboard answered) |
+| `POST /api/v1/control/soft-stop` | `POST /api/stop` |
+| `POST /api/v1/gripper` | Learner uses the viewer; bots should not drive motion |
+| `POST /api/v1/motion/preset` | Learner uses the viewer; bots should not drive motion |
+
+### `GET /` *(dashboard HTML)*
+
+Live teleoperation viewer / panel page. Monitor may open `${RAMION_BASE_URL}/` for screenshots. Exact chrome and controls are UI details, not part of the verified JSON contract.
 
 ---
 
 ## Mapping to exercises
 
-| Exercise ID | Primary pass condition (API) | Screenshot fallback |
+| Exercise ID | Primary pass condition (`GET /api/state`) | Screenshot fallback |
 |-------------|-------------------------------|---------------------|
-| `open-gripper` | `gripper.open === true` | UI shows “Open” / fingers separated |
-| `close-gripper` | `gripper.open === false` | UI shows “Closed” |
-| `move-home` | Joints within **TODO** tolerance of `home` preset | Arm icon at home pose |
+| `open-gripper` | Gripper joint `measured` value `>= low + 0.85 * (high - low)` and not still moving | UI shows open / separated fingers |
+| `close-gripper` | Gripper joint `measured` value `<= low + 0.15 * (high - low)` and not still moving | UI shows closed |
+| `move-home` | `connected` and not still moving; screenshot or operator-defined home pose (live state has no home vector field) | Arm depicted at the UI home/ready pose |
 
-See `bots/monitor/skills/grading-rubric/SKILL.md` for thresholds and timeouts.
+See `bots/monitor/skills/grading-rubric/SKILL.md`.
 
 ---
 
-## Integration checklist (team)
+## Integration checklist
 
-- [ ] Inventory actual routes on `ramion-server-01:8780` (curl + browser devtools).
-- [ ] Update this file; remove *(proposed)* labels for implemented routes.
-- [ ] Set Monitor env `RAMION_BASE_URL` to MagicDNS base.
-- [ ] Document auth if added.
-- [ ] Verify soft-stop does not conflict with hardware e-stop semantics.
+- [x] Document verified `GET /api/state` fields, camera JPEGs, and `POST /api/stop`.
+- [x] Point Monitor/Tutor skills at those routes instead of unverified `/api/v1/…` paths.
+- [x] Document Watcher webhook/JSONL alert names and levels.
+- [ ] Set private env `RAMION_BASE_URL` / `RAMION_DASHBOARD_URL` / `RAMION_VIEWER_URL` per deployment.
+- [ ] Point `PAPAJ_WEBHOOK_URL` at the Monitor / ops intake if Watcher should notify the teaching loop.

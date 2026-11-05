@@ -130,6 +130,22 @@ Webhook payload fields include `source`, `ts`, `level`, `rule`, `message`,
 
 Live camera frames belong in a private evidence directory, not in git.
 
+
+## Monitor integration
+
+Papaj Watcher is the safety observer; Monitor is the exercise grader. Do not
+copy these rules into Monitor.
+
+When a finding fires, Watcher writes one JSON object to stdout, optional JSONL
+(`--log` / `PAPAJ_LOG`), and optional webhook (`--webhook` / `PAPAJ_WEBHOOK_URL`).
+Point that webhook at a Grok Bot routine or Monitor intake so the teaching loop
+sees the same `level` (`info`, `warning`, `critical`) and `rule` names listed
+above. Monitor should treat `critical` as safety context for a FAIL, note
+`warning` in Evidence, and never recompute thresholds — those live in
+`thresholds.example.json`.
+
+See `docs/architecture.md` and `bots/monitor/skills/grading-rubric/SKILL.md`.
+
 ## Configuration
 
 | Variable / flag | Purpose |

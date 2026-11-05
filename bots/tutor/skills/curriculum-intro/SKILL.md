@@ -22,9 +22,9 @@ Ramion lets software developers **rent time** on a real robotic arm and **operat
 ## 3. Safety (non-negotiable)
 
 1. **Hardware e-stop** on the cell beats everything — bots cannot replace it.
-2. **Soft-stop** in software freezes motion; Tutor can trigger via API; you can ask for “stop” anytime.
+2. **Soft-stop** (`POST /api/stop`) holds motion in software; Tutor can trigger it; you can ask for “stop” anytime.
 3. Stay within assigned exercises until Tutor advances you.
-4. A separate **Watcher** agent (not in this chat) may flag abuse — cooperate if ops contacts you.
+4. **Papaj Watcher** (`packages/watcher`) may emit `warning` / `critical` safety alerts (webhook or JSONL). Cooperate if Monitor or ops forwards one.
 
 ## 4. How this chat works
 
